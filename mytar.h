@@ -1,3 +1,10 @@
+#define CFLAGPOS 0
+#define TFLAGPOS 1
+#define XFLAGPOS 2
+#define VFLAGPOS 3
+#define SFLAGPOS 4
+#define FFLAGPOS 5
+
 #define REGFILE	'0'	/* Regular file (preferred code).  */
 #define AREGFILE	'\0'	/* Regular file (alternate code).  */
 #define SYMFILE	'2'	/* Symbolic link (hard if not supported).  */
@@ -10,8 +17,6 @@
 /* Contents of the version field and its length.  */
 #define TVERSION "00"
 #define TVERSIONLEN 2
-
-#endif /* tar.h */  
 
 #define BLOCKSIZE 512
 #define MAXPATH 256
@@ -72,3 +77,6 @@ typedef struct Ustar_Header {
 void tar_create(int tar_fd, int *flags, char *path_names[], int total_path);
 void tar_list(int tar_fd, int *flags, char *path_names[], int total_path);
 void tar_create(int tar_fd, int *flags, char *path_names[], int total_path);
+void usageError();
+void flagError();
+void parse_flags(char *flagArg, int *flag_store);

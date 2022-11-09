@@ -4,15 +4,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <pwd.h>
-#include <grp.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <dirent.h>
 #include <time.h>
 #include "mytar.h"
-#include "parseFlag.h"
 
 #define NAME 257
 #define USERGROUP 19
@@ -129,10 +126,12 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
                         /* if v flag is on, print out the longer version */
                         printf("%s %s %8d %s %s\n", permission, user_group, 
                             size, mtimeBuff, name);
+                        break;
                     }
                     else {
                         /* if not print out the name only. */
                         printf("%s\n", name);
+                        break;
                     }
                 }
             }
