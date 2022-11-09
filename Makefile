@@ -6,14 +6,11 @@ LD = gcc
 
 all: mytar
 
-mytar: mytar.o parseFlag.o tar_create.o tar_list.o tar_extract.o
-	$(CC) -o mytar mytar.o parseFlag.o tar_create.o tar_list.o tar_extract.o
+mytar: mytar.o tar_create.o tar_list.o tar_extract.o
+	$(CC) -o mytar mytar.o tar_create.o tar_list.o tar_extract.o
 
 mytar.o: mytar.c
 	$(CC) $(CFLAGS) -c -o mytar.o mytar.c
-
-parseFlag.o: parseFlag.c
-	$(CC) $(CFLAGS) -c -o parseFlag.o parseFlag.c
 
 tar_create.o: tar_create.c
 	$(CC) $(CFLAGS) -c -o tar_create.o tar_create.c

@@ -80,3 +80,4 @@ void tar_create(int tar_fd, int *flags, char *path_names[], int total_path);
 void usageError();
 void flagError();
 void parse_flags(char *flagArg, int *flag_store);
+int check_strict(char *magic, char *version);

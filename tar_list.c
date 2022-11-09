@@ -33,9 +33,10 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
     int size;
     char mtimeBuff[TIMESIZE];
     int num_read;
-    struct tm* mtstruct;
+    struct tm* mtinfo;
     time_t mtime;
     int tar_val, end;
+    char magic[MAGIC_SIZE + 1], version[VERSION_SIZE]; /* strict check */
 
     /* The + 1 is for NULL termination */
     char currBuff[BLOCKSIZE + 1] = {'\0'};
@@ -88,8 +89,18 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
             /* copy to mtime */
             strcpy(mtimeBuff, &currBuff[MTIME_OFFSET]);
             mtime =  strtol(mtimeBuff, NULL, 8);
-            mtstruct = localtime(&mtime);
-            strftime(mtimeBuff, 18, "%Y-%m-%d %H:%M", mtstruct);
+            mtinfo = localtime(&mtime);
+            strftime(mtimeBuff, 18, "%Y-%m-%d %H:%M", mtinfo);
+
+            /* Check for strict compliance */
+            strncpy(magic, &currBuff[MAGIC_OFFSET], MAGIC_SIZE + 1);
+            strncpy(version, &currBuff[VERSION_OFFSET], VERSION_SIZE);
+            /* check to see if it's Strict con*/
+            if (flags[SFLAGPOS]) {
+                if (check_strict(magic, version)) {
+                    fprintf(stderr, "Not Conforming to Strict Mode\n");
+                }
+            }
         }
         /* if it's a courrupt file or it's end of file, STOP READING!!! */
         else {
@@ -293,4 +304,13 @@ int check_end_of_tar(unsigned char *prev_block, unsigned char *curBlock) {
         }
     }
     return 1; /* checked all and it's all NULL */
+}
+
+int check_strict(char *magic, char *version) {
+    /* does strict mode checks */
+    char s_magic[MAGIC_SIZE + 1] = "ustar\0";
+    char s_version[MAGIC_SIZE] = "00";
+
+    return (strncmp(s_magic, magic, MAGIC_SIZE + 1) + 
+            strncmp(s_version, version, MAGIC_SIZE));
 }

@@ -11,11 +11,11 @@
 #include <string.h>
 #include <dirent.h>
 #include "mytar.h"
-#include "parseFlag.h"
 
 #define MODEMASK  S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO
 #define SPACES 32
 #define ABSOLUTE_PATH 4096
+#define BIGOCTAL 2097151
 
 void fill_data(int tar_fd, char *path,struct stat *sb, int *flags);
 int insert_special_int(char *where, size_t size, int32_t val);
@@ -227,7 +227,7 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
              * check if it fits or not to the name. If it doesn't 
              * just error out */
             if (path_pointer == NULL) {
-                if (strlen(path_pointer) > NAME_SIZE) {
+                if (strlen(path) > NAME_SIZE) {
                     fprintf(stderr, "%s: (Name too long?) Skipping.\n", path);
                     return -1;
                 }
@@ -283,8 +283,15 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
     }
     /* fill mode with the already existing modes from befre */
     sprintf(header -> mode, "%07o", (fstat -> st_mode) & (MODEMASK));
-    /* Fill up UID (User ID of the file owner) */
-    insert_special_int(header -> uid, UID_SIZE, fstat -> st_uid);
+
+    /* Fill up UID (User ID of the file owner). If the st_uid is bigger than
+     * BIGOCTAL or 7777777 octal, then insert as binary */
+    if ((fstat -> st_uid) > BIGOCTAL) {
+        insert_special_int(header -> uid, UID_SIZE, fstat -> st_uid);
+    }
+    else {
+        sprintf(header -> uid, "%07o", fstat -> st_uid);
+    }
     /* Fill GID (User Group ID of the file owner) */
     sprintf(header -> gid, "%07o", fstat -> st_gid);
     /* Fill Size. If it's Directory or Symlink, set size as 0 */
@@ -317,11 +324,13 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
     sprintf(header -> magic, "%s", MAGIC);
     /* Just copy to version "00"*/
     strcpy(header -> version, TVERSION);
+
     /* Grab uname from UID */
     if (!(pwduid = getpwuid(fstat -> st_uid))) {
         perror("getpwduid");
         exit(EXIT_FAILURE);
     }
+
     /* Store only 32 characters and if possible, NULL terminating into uname */
     strncpy(header -> uname, pwduid -> pw_name, UNAME_SIZE);
     /*grab gname from GID */
@@ -332,8 +341,8 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
     /* Store only 32 characters, and if possible, NULL terminating into gname */
     strncpy(header -> gname, grpid -> gr_name, GNAME_SIZE);
     /* dev major and minor will empty or '\0' */
-    /* check sum add everything in unsigned 8 bit order or by 1 byte each */
 
+    /* check sum add everything in unsigned 8 bit order or by 1 byte each */
     for (i = 0; i < BLOCKSIZE; i++) {
         chksum += ((unsigned char *)(header))[i];
     }

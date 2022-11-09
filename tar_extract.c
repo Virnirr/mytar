@@ -25,7 +25,6 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
     char typeflag[TWO] = {'\0'};
     int size;
     char str_size[SIZE_SIZE] = {'\0'}; 
-    struct tm* mtstruct;
     time_t mtime;
     char name[NAME] = {'\0'};
     char linkname[LINKNAME_SIZE + 1] = {'\0'};
@@ -38,6 +37,7 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
     int end; /* end of file */
     int file_perm;
     int check_file;
+    char magic[MAGIC_SIZE + 1], version[VERSION_SIZE]; /* strict check */
 
     /* The + 1 is for NULL termination */
     char currBuff[BLOCKSIZE + 1] = {'\0'};
@@ -63,7 +63,6 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
             /* get the mtime to store into file later */
             strcpy(mtimeBuff, &currBuff[MTIME_OFFSET]);
             mtime =  strtol(mtimeBuff, NULL, 8);
-            mtstruct = localtime(&mtime);
 
             /* If size == 0, meaning it's a directory, connect the prefix 
              * else just connect the name */
@@ -85,6 +84,16 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
             
             /* copy linkname to linkname for symbolic link */
             strncpy(linkname, &currBuff[LINKNAME_OFFSET], LINKNAME_SIZE);
+
+                        /* Check for strict compliance */
+            strncpy(magic, &currBuff[MAGIC_OFFSET], MAGIC_SIZE + 1);
+            strncpy(version, &currBuff[VERSION_OFFSET], VERSION_SIZE);
+            /* check to see if it's Strict con*/
+            if (flags[SFLAGPOS]) {
+                if (check_strict(magic, version)) {
+                    fprintf(stderr, "Not Conforming to Strict Mode\n");
+                }
+            }
         }
         else {
             /* check if it's end of file */
