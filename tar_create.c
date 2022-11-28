@@ -17,30 +17,22 @@
 #define ABSOLUTE_PATH 4096
 #define BIGOCTAL 2097151
 
-void fill_data(int tar_fd, char *path,struct stat *sb, int *flags);
+void fill_data(int tar_fd, char *path, int *flags);
 int insert_special_int(char *where, size_t size, int32_t val);
 int fill_header(Ustar_Header *header, struct stat *fstat,char *path,int *flags);
-void checksum(unsigned char *buffer, int size, int *chksum);
 
 void tar_create(int tar_fd, int *flags, char *path_names[], int total_path) {
     
     int i;
     uint8_t end_of_file_archieve[BLOCKSIZE * 2]; /* end of archieve*/
-    struct stat psb; /* Used for lstat current directory's file */
-    char abspath[ABSOLUTE_PATH];
+    struct stat sb; /* Used to lstat to check if it's a valid file */
 
     memset(end_of_file_archieve, '\0', BLOCKSIZE * 2);
-
-    /* Get absolute path of current working directory (cwd) */
-    if (!(getcwd(abspath, MAXPATH))) {
-        perror("getcwd");
-        exit(EXIT_FAILURE);
-    }
 
     /* Loop through all the given paths and archieve into tar file in
      * tar_fd file descriptor that has been opened */
     for (i = 0; i < total_path; i++) {
-        if (lstat(path_names[i], &psb) < 0) {
+        if (lstat(path_names[i], &sb) < 0) {
             /* When writing, skip files you can’t read,
              * but go on. (report, of course). If it's an actual
              * lstat error, perror and exit */
@@ -56,13 +48,7 @@ void tar_create(int tar_fd, int *flags, char *path_names[], int total_path) {
         }
         else {
             /* Try to fill data */
-            fill_data(tar_fd, path_names[i], &psb, flags);
-        }
-
-        /* Go back to original file before you check next path */
-        if (chdir(abspath) < 0) {
-            perror("chdir");
-            exit(EXIT_FAILURE);
+            fill_data(tar_fd, path_names[i], flags);
         }
     }
 
@@ -79,7 +65,7 @@ void tar_create(int tar_fd, int *flags, char *path_names[], int total_path) {
     }
 }
 
-void fill_data(int tar_fd, char *path, struct stat *sb, int *flags) 
+void fill_data(int tar_fd, char *path, int *flags) 
 {
     struct stat currSB, temp;
     DIR *dir;
@@ -108,6 +94,8 @@ void fill_data(int tar_fd, char *path, struct stat *sb, int *flags)
         exit(EXIT_FAILURE);
     }
     
+    /* adding a '/' at the end of a directory if it's only the name and 
+     * the user did not put a '/' at the end. */
     if ((strchr(newPath, '/') == 0) && S_ISDIR(currSB.st_mode)) {
         strcat(newPath, "/");
     }
@@ -130,9 +118,11 @@ void fill_data(int tar_fd, char *path, struct stat *sb, int *flags)
         }
 
         while ((dirent = readdir(dir)) != NULL) {
+            /* add an extra '/' if you already didn't have it? */
             if (strchr(newPath, '/') == 0) {
                 strcat(newPath, "/");
             }
+            /* If it's "." or "..", skip it */
             if (strcmp(dirent -> d_name, ".") && 
                     strcmp(dirent -> d_name, "..")) {
                 /* concatenate new directory path to go into 
@@ -145,8 +135,8 @@ void fill_data(int tar_fd, char *path, struct stat *sb, int *flags)
                 if (S_ISDIR(temp.st_mode)) {
                     strcat(newPath, "/");
                 }
-                /* recursive create DFS */
-                fill_data(tar_fd, newPath, &currSB, flags);
+                /* recursive create DFS of the directory */
+                fill_data(tar_fd, newPath, flags);
             }
             /* reset to original path */
             memset(newPath, '\0', MAXPATH);
@@ -158,6 +148,8 @@ void fill_data(int tar_fd, char *path, struct stat *sb, int *flags)
             exit(EXIT_FAILURE);
         }
     }
+    /* else if it's a child, then just open the file and print the data of the
+     * child into the tarfile. */
     else if (S_ISREG(currSB.st_mode)) {
         if ((child_fd = open(path, O_RDONLY)) < 0) {
             perror("open");
@@ -200,12 +192,6 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
    /* If the file size is greater than alloted file size */
     if (strlen(path) > NAME_SIZE) {
         
-        /* check if the path name size is greater than the alloted 
-         * name + prefix + 1 for the / of directory */
-        if (strlen(path) > NAME_SIZE + 1 + PREFIX_SIZE) {
-            fprintf(stderr,"%s: unable to construct header. Skipping.\n", path);
-            return -1; 
-        }
         /* I'm going insane working on this assignment ;-; Please Thank ME
          * in the future, the future ME. I know you will do well, keep it 
          * up. */
@@ -223,6 +209,7 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
             memset(buffer, '\0', PREFIX_SIZE);
             memset(header -> prefix, '\0', PREFIX_SIZE);
             path_pointer = strchr(path_pointer, '/');
+
             /* if there is no '/' meaning it's a regular file check 
              * check if it fits or not to the name. If it doesn't 
              * just error out */
@@ -235,15 +222,15 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
             }
             /* check to see if the directory fits the prefix_size, 
              * fits the prefix or not. If it doesn't error out. */
-            if (path_pointer - path > PREFIX_SIZE) {
-                /* Directory can't be longer than 155 */
-                fprintf(stderr, "%s: (Name too long?) Skipping.\n", path);
-                return -1;
-            }
 
             /* copy the name all the way up to the point you found the
              * first '/' which the first directory */
             for (i = 0; i < path_pointer - path; i++) {
+                if (i > PREFIX_SIZE) {
+                    /* Directory can't be longer than 155 */
+                    fprintf(stderr, "%s: (Name too long?) Skipping.\n", path);
+                    return -1;
+                }
                 buffer[i] = path[i]; 
             }
             /* store buffer into header */
@@ -258,7 +245,7 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
             /* check if current length is good, if it is, then get out of
              * this loop */
             if (strlen(path_pointer) <= NAME_SIZE) {
-                break;             
+                break;        
             }
         }
     }
@@ -266,9 +253,9 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
      * check if it fits into name with a '/' or not */
     if (S_ISDIR(fstat -> st_mode)) {
         if (strlen(path) == NAME_SIZE && path[NAME_SIZE - 1] != '/') {
-            /* store in prefix if it doesn't have a / and is 
+            /* store in prefix if it doesn't have a '/' and is 
              * equal to 100 bytes exactly. */
-            sprintf(header -> prefix, "%s", path_pointer);
+            strcat(header -> prefix, path_pointer);
         }
         else {
             /* if it's less than size of name, then add it to name.
@@ -278,7 +265,7 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
         }
     }
     else {
-        /* it fits into name NICE! */
+        /* it fits into name NICE! and it's a regular file too */
         sprintf(header -> name, "%s", path_pointer);
     }
     /* fill mode with the already existing modes from befre */
@@ -323,7 +310,7 @@ int fill_header(Ustar_Header *header, struct stat *fstat, char *path,
     /* Fills up mytar */
     sprintf(header -> magic, "%s", MAGIC);
     /* Just copy to version "00"*/
-    strcpy(header -> version, TVERSION);
+    strncpy(header -> version, TVERSION, VERSION_SIZE);
 
     /* Grab uname from UID */
     if (!(pwduid = getpwuid(fstat -> st_uid))) {

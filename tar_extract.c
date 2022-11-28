@@ -14,8 +14,10 @@
 
 #define NAME 257
 #define RWPERMS S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
+#define RWXPERMS S_IRWXU | S_IRWXG | S_IRWXO
 #define TWO 2
 #define TIMESIZE 16
+#define OCTALNUM 8
 
 int tar_validation(unsigned char *header);
 int check_end_of_tar(unsigned char *prev_block, unsigned char *curBlock);
@@ -38,6 +40,7 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
     int file_perm;
     int check_file;
     char magic[MAGIC_SIZE + 1], version[VERSION_SIZE]; /* strict check */
+    
 
     /* The + 1 is for NULL termination */
     char currBuff[BLOCKSIZE + 1] = {'\0'};
@@ -50,19 +53,32 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
             !check_end_of_tar((unsigned char *)prevBuff, 
             (unsigned char *)currBuff)) {
 
-            /* get the permission from the header and store in permOctal */
-            strcpy(permOctal, &currBuff[MODE_OFFSET]);
-            perm = strtol(permOctal, NULL, 8);
-
             /* Get the flag to check what kind of file it is */
             typeflag[0] = currBuff[TYPEFLAG_OFFSET];
+
+            /* get the permission from the header and store in permOctal */
+            /* offers rw permission to everyone, and the umask applies. */
+            strcpy(permOctal, &currBuff[MODE_OFFSET]);
+            perm = strtol(permOctal, NULL, OCTALNUM);
+            /* if it's directory or the files has an x perm, give 
+             * everyone rwx perms. Loop through until you find anyone 
+             * at the third bit is on. */
+            if (perm & S_IXUSR || perm & S_IXGRP || perm & S_IXOTH ||
+                !strcmp(typeflag, "5")) {
+                /* If anyone had execute or if it's a directory, 
+                 * give everyone execute */
+                    perm |= RWXPERMS;
+            }
+            /* Give everyone rw perms */
+            perm |= RWPERMS;
+
             /* Get the size of the file */
             strcpy(str_size, &currBuff[SIZE_OFFSET]);
-            size = strtol(str_size, NULL, 8);
+            size = strtol(str_size, NULL, OCTALNUM);
 
             /* get the mtime to store into file later */
             strcpy(mtimeBuff, &currBuff[MTIME_OFFSET]);
-            mtime =  strtol(mtimeBuff, NULL, 8);
+            mtime =  strtol(mtimeBuff, NULL, OCTALNUM);
 
             /* If size == 0, meaning it's a directory, connect the prefix 
              * else just connect the name */
@@ -211,7 +227,9 @@ void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path) {
                     break;
                 }
             }
-            /* skip the data if it has a size > 0 and is a regular file */
+            /* skip the data if it has a size > 0 and is a regular file 
+             * skip data from regular files that you don't want to extract 
+             * from. */
             if (!check_file && (!strcmp(typeflag, "0") || 
                     !strcmp(typeflag, "\0")) && size) {
                 /* if the data was greater than 0, but less than 512, skip 

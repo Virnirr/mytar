@@ -10,9 +10,7 @@
 
 #define RWPERMS S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
 
-void parse_flags(char *flagArg, int *flag_store);
-void usageError();
-void flagError();
+void get_flags(char *flagArg, int *flag_store);
 
 int main(int argc, char *argv[]) {
 
@@ -22,19 +20,15 @@ int main(int argc, char *argv[]) {
     char *tar_path[argc - ARGSIZE];
     int tar_fd, i, total_path = argc - ARGSIZE;
     
-    /* error out if the usage is not at least 3 */
-    if (argc < ARGSIZE) {
-        usageError();
-    }
-
     /* Get the flags into the flag arrays */
-    parse_flags(argv[1], flag);
+    get_flags(argv[1], flag);
     /* Place the path into the tar_path in order to compile later */
     for (i = 0; i < total_path; i++) {
-        /*if (strlen(argv[i + ARGSIZE]) > MAX_PATH_LEN) {
-            fprintf(stderr, "Path name cannot be longer than 256 characters\n");
+        /* checks if the path name is less than or greater than 256 */
+        if (strlen(argv[i + ARGSIZE]) > MAX_PATH_LEN) {
+            fprintf(stderr, "Path name is too long\n");
             exit(EXIT_FAILURE);
-        }*/
+        }
         tar_path[i] = argv[i + ARGSIZE];
     }
 
@@ -66,8 +60,11 @@ int main(int argc, char *argv[]) {
 }
 
 /* parse the flag and check */
-void parse_flags(char *flagArg, int *flag_store) {
-    /* Loop through flagArg until it reaches a */
+void get_flags(char *flagArg, int *flag_store) {
+    /* Loop through flagArg until it reaches the end. If there are more than 
+     * one of the same flag that isn't v flag, error out and exit. If there
+     * is no flag, also error out. If the flag is not [cvtfS], also error 
+     * out. */
     int flagPos = 0;
     int argPos = 0;
     while (flagArg[argPos]) {
@@ -78,7 +75,8 @@ void parse_flags(char *flagArg, int *flag_store) {
                     flagPos++;
                 }
                 else {
-                    flagError();
+                    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
+                    exit(EXIT_FAILURE);
                 }
                 argPos++;
                 break;
@@ -88,7 +86,8 @@ void parse_flags(char *flagArg, int *flag_store) {
                     flagPos++;
                 }
                 else {
-                    flagError();
+                    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
+                    exit(EXIT_FAILURE);
                 }
                 argPos++;
                 break;
@@ -98,18 +97,14 @@ void parse_flags(char *flagArg, int *flag_store) {
                     flagPos++;
                 }
                 else {
-                    flagError();
+                    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
+                    exit(EXIT_FAILURE);
                 }
                 argPos++;
                 break;
             case 'v':
-                if (flag_store[VFLAGPOS] == 0) {
-                    flag_store[VFLAGPOS]++;
-                    flagPos++;
-                }
-                else {
-                    flagError();
-                }
+                flag_store[VFLAGPOS]++;
+                flagPos++;
                 argPos++;
                 break;
             case 'S':
@@ -118,7 +113,8 @@ void parse_flags(char *flagArg, int *flag_store) {
                     flagPos++;
                 }
                 else {
-                    flagError();
+                    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
+                    exit(EXIT_FAILURE);
                 }
                 argPos++;
                 break;
@@ -128,28 +124,20 @@ void parse_flags(char *flagArg, int *flag_store) {
                     flagPos++;
                 }
                 else {
-                    flagError();
+                    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
+                    exit(EXIT_FAILURE);
                 }
                 argPos++;
                 break;
             /* if the flag is anything else, then run a usage Error */
             default:
-                usageError();
+                fprintf(stderr, 
+                        "usage: mytar [ctxvS]f tarfile [ path [ ... ] ]\n");
+                exit(EXIT_FAILURE);
         }
     }
     if (flagPos == 0) {
-        usageError();
+        fprintf(stderr, "usage: mytar [ctxvS]f tarfile [ path [ ... ] ]\n");
+        exit(EXIT_FAILURE);
     }
-}
-
-/* Print the usage error out if command line is wrong */
-void usageError() {
-    fprintf(stderr, "usage: mytar [ctxvS]f tarfile [ path [ ... ] ]\n");
-    exit(EXIT_FAILURE);
-}
-
-/* Print flag error if they input more than one of each flag*/
-void flagError() {
-    fprintf(stderr, "Invalid amount of flag [ctxvS]f\n");
-    exit(EXIT_FAILURE);
 }

@@ -6,7 +6,7 @@
 #define FFLAGPOS 5
 
 #define REGFILE	'0'	/* Regular file (preferred code).  */
-#define AREGFILE	'\0'	/* Regular file (alternate code).  */
+#define AREGFILE '\0' /* Regular file (alternate code).  */
 #define SYMFILE	'2'	/* Symbolic link (hard if not supported).  */
 #define DIRFILE	'5'	/* Directory.  */
 
@@ -76,8 +76,5 @@ typedef struct Ustar_Header {
 /* this */
 void tar_create(int tar_fd, int *flags, char *path_names[], int total_path);
 void tar_list(int tar_fd, int *flags, char *path_names[], int total_path);
-void tar_create(int tar_fd, int *flags, char *path_names[], int total_path);
-void usageError();
-void flagError();
-void parse_flags(char *flagArg, int *flag_store);
+void tar_extract(int tar_fd, int *flags, char *path_names[], int total_path);
 int check_strict(char *magic, char *version);

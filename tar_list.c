@@ -13,8 +13,13 @@
 
 #define NAME 257
 #define USERGROUP 19
-#define SIZEFILE 8
 #define TIMESIZE 16
+#define PERMNUM 11
+#define OCTALNUM 8
+#define REGNUM 48
+#define SYMNUM 50
+#define DIRNUM 53
+#define TIMELEN 18
 
 void add_perm_to_list(int perm, char *list, int typeflag);
 int check_end_of_tar(unsigned char *prev_block, unsigned char *curBlock);
@@ -26,7 +31,7 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
     char name[NAME] = {'\0'};
     char permOctal[MODE_SIZE];
     int i, perm, j = 0; 
-    char permission[11] = {'\0'};
+    char permission[PERMNUM] = {'\0'};
     char uid[UID_SIZE], gid[GID_SIZE];
     char user_group[USERGROUP + 1] = {'\0'};
     char size_temp[SIZE_SIZE] = {'\0'};
@@ -41,14 +46,20 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
     /* The + 1 is for NULL termination */
     char currBuff[BLOCKSIZE + 1] = {'\0'};
     char prevBuff[BLOCKSIZE + 1] = {'\0'};
-
+    
+    /* Keep reading 512 blocks of data */
     while ((num_read = read(tar_fd, currBuff, BLOCKSIZE)) > 0) {
+
+        /* if it's not a corrupt header or end of file with two 512 
+         * blocks of NULL, load in the necessary data. 
+         * NOTE: This part can probably be made into an unpacking header
+         * function, but I was too lazy since and I was soloing so yeah */
         if ((tar_val = tar_validation((unsigned char *)currBuff)) == 1 && 
             !(end = check_end_of_tar((unsigned char *)prevBuff, 
             (unsigned char *)currBuff))) {
             /* get the permission from the header and store in permOctal */
             strcpy(permOctal, &currBuff[MODE_OFFSET]);
-            perm = strtol(permOctal, NULL, 8);
+            perm = strtol(permOctal, NULL, OCTALNUM);
             add_perm_to_list(perm, permission, currBuff[TYPEFLAG_OFFSET]);
 
             /* if user name is greater than 17 in length */
@@ -56,7 +67,8 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
             strcat(user_group, "/");
             strncat(user_group, &currBuff[GNAME_OFFSET], 
                 USERGROUP - strlen(user_group) - 1);
-            
+           
+           /* pad out the rest of the user/gropu with spaces */ 
             for (i = 0; i < 18 - strlen(user_group); i++) {
                 strcat(user_group, " ");
             }
@@ -67,7 +79,7 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
                 size_temp[j++] = currBuff[i];
             }
             /* term octal size to long integer */
-            size = strtol(size_temp, NULL, 8);
+            size = strtol(size_temp, NULL, OCTALNUM);
 
             /* If size == 0, meaning it's a directory, connect the prefix 
              * else just connect the name*/
@@ -88,9 +100,9 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
             }
             /* copy to mtime */
             strcpy(mtimeBuff, &currBuff[MTIME_OFFSET]);
-            mtime =  strtol(mtimeBuff, NULL, 8);
+            mtime =  strtol(mtimeBuff, NULL, OCTALNUM);
             mtinfo = localtime(&mtime);
-            strftime(mtimeBuff, 18, "%Y-%m-%d %H:%M", mtinfo);
+            strftime(mtimeBuff, TIMELEN, "%Y-%m-%d %H:%M", mtinfo);
 
             /* Check for strict compliance */
             strncpy(magic, &currBuff[MAGIC_OFFSET], MAGIC_SIZE + 1);
@@ -166,7 +178,7 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
         memset(user_group, '\0', USERGROUP + 1);
         memset(size_temp, '\0', SIZE_SIZE);
         memset(name, '\0', NAME);
-        memset(permission, '\0', 11);
+        memset(permission, '\0', PERMNUM);
 
         /* set previous buffer as current buffer to check for end of file */
         memset(prevBuff, '\0', (BLOCKSIZE + 1));
@@ -190,15 +202,15 @@ void tar_list(int tar_fd, int *flags, char *path_names[], int total_path) {
 void add_perm_to_list(int perm, char *list, int typeflag) {
     int i = 0;
 
-    if(typeflag == 48 || typeflag == 0)
+    if(typeflag == REGNUM || typeflag == 0)
     {
         list[i++] = '-';
     }
-    else if(typeflag == 50)
+    else if(typeflag == SYMNUM)
     {
         list[i++] = 'l';
     }
-    else if(typeflag == 53)
+    else if(typeflag == DIRNUM)
     {
         list[i++] = 'd';
     }
@@ -280,7 +292,7 @@ int tar_validation(unsigned char *header) {
         }
     }
     /* convert string to octal in number */
-    header_chksum = strtol(chksum, NULL, 8);
+    header_chksum = strtol(chksum, NULL, OCTALNUM);
     total_chksum += 8 * ' ';
 
     /* if it's equal, return true else false */
